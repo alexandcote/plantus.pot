@@ -17,7 +17,7 @@ mbed import git@github.com:alexandcote/plantus-pot.git plantus-pot
 
 Compile the project
 ```
-mbed compile
+mbed compile -m LPC1768 -m GCC_ARM
 ```
 
 Run the script to copy the binary file on the MBED
