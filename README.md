@@ -12,16 +12,16 @@ pip install mbed-cli
 
 Clonning the repository
 ```
-mbed import git@github.com:alexandcote/plantus-pot.git plantus-pot
+mbed import git@github.com:alexandcote/plantus.pot.git plantus.pot
 ```
 
 Compile the project
 ```
-cd plantus-pot
+cd plantus.pot
 mbed compile -m LPC1768 -t GCC_ARM
 ```
 
 Run the script to copy the binary file on the MBED
 ```
-./mbed_copy BUILD/LPC1768/GCC_ARM/plantus-pot.bin /Volumes/MBED
+./mbed_copy BUILD/LPC1768/GCC_ARM/plantus.pot.bin /Volumes/MBED
 ```
