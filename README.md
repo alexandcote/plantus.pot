@@ -12,7 +12,7 @@ pip install mbed-cli
 
 Clonning the repository
 ```
-mbed import git@github.com:alexandcote/plantus-station.git plantus-station
+mbed import git@github.com:alexandcote/plantus-pot.git plantus-pot
 ```
 
 Compile the project
