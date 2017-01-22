@@ -22,5 +22,5 @@ mbed compile
 
 Run the script to copy the binary file on the MBED
 ```
-./mbed_copy BUILD/LPC1768/GCC_ARM/plantus-station.bin /Volumes/MBED
+./mbed_copy BUILD/LPC1768/GCC_ARM/plantus-pot.bin /Volumes/MBED
 ```
