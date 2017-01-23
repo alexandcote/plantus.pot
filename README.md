@@ -7,7 +7,7 @@ brew cask install gcc-arm-embedded
 
 Installing mbed-cli
 ```
-pip install mbed-cli
+sudo pip install mbed-cli
 ```
 
 Clonning the repository
