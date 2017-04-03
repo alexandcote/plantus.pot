@@ -168,7 +168,7 @@ void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, con
             case FRAME_PREFIX_TURN_WATER_PUMP_OFF:
                 for(int i = 1; i < len; i++) 
                     operationId[i-1] = frame[i];
-                SetWaterPumpTo(true, operationId);
+                SetWaterPumpTo(false, operationId);
                 break; 
             case FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE:            
                 for(int i = 1; i < len; i++) 
