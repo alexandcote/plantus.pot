@@ -19,10 +19,10 @@ using namespace XBeeLib;
 #define NODE_ID_LENGTH 2
 
 #define LUMINOSITY_DATA_LENGTH 2
-#define AMBIANT_TEMPERATURE_DATA_LENGTH 1
+#define TEMPERATURE_DATA_LENGTH 6
 #define SOIL_HUMIDITY_DATA_LENGTH 1
 #define WATER_LEVEL_DATA_LENGTH 1
-#define DATA_LENGTH FRAME_PREFIX_LENGTH + LUMINOSITY_DATA_LENGTH + AMBIANT_TEMPERATURE_DATA_LENGTH + SOIL_HUMIDITY_DATA_LENGTH + WATER_LEVEL_DATA_LENGTH
+#define DATA_LENGTH FRAME_PREFIX_LENGTH + LUMINOSITY_DATA_LENGTH + TEMPERATURE_DATA_LENGTH + SOIL_HUMIDITY_DATA_LENGTH + WATER_LEVEL_DATA_LENGTH
 #define FRAME_PREFIX_TURN_WATER_PUMP_ON 0xBB
 #define FRAME_PREFIX_TURN_WATER_PUMP_OFF 0xAA
 #define FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE 0xFF // for debug purposes
@@ -51,20 +51,21 @@ using namespace XBeeLib;
 #define CFG_KEY_PAN_ID "PAN_ID"
 #define CFG_POT_IDENTIFIER "POT_IDENTIFIER"
 
+// global variables
 uint16_t periode;
 uint16_t panID; 
 uint8_t remoteNodesCount = 0;
 uint16_t pumpActivationTime = 5000; // ms
-
-// global variables
-ConfigFile cfg;
-RemoteXBeeZB remoteNodesInNetwork[MAX_NODES];
+const float TMP36VoltageOffset = 0.500;
 char potIdentifier[POT_IDENTIFIER_LENGTH];
 char frameData[DATA_LENGTH];
 char luminosity[LUMINOSITY_DATA_LENGTH];
-char ambiantTemperature[AMBIANT_TEMPERATURE_DATA_LENGTH];
+char temperature[TEMPERATURE_DATA_LENGTH];
 char soilHumidity[SOIL_HUMIDITY_DATA_LENGTH];
 char waterLevel[WATER_LEVEL_DATA_LENGTH];
+char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
+RemoteXBeeZB remoteNodesInNetwork[MAX_NODES];
+ConfigFile cfg;
 
 // peripherals
 extern Serial pc;
@@ -73,16 +74,17 @@ extern LocalFileSystem local;
 extern ConfigFile cfg;
 extern TSL2561 tsl2561;
 extern DigitalOut waterPump;
+extern AnalogIn tmp36;
 
 // prototypes
 extern "C" void mbed_mac_address(char *mac);
-void ReadCaptors(TSL2561 *tsl2561);
+void ReadCaptors(void);
 void SetLedTo(uint16_t led, bool state);
 void FlashLed(uint16_t led);
 void SendFrameToCoordinator(char frame[], uint16_t frameLength);
 void ReadConfigFile(uint16_t *periode, uint16_t *panID);
 void SetupXBee(uint16_t panID);
-void StartEventQueue(TSL2561 *tsl2561, uint16_t periode);
+void StartEventQueue(uint16_t periode);
 void GetMacAddress(char *macAdr);
 void CreateDataFrame(void);
 void CheckIfNewXBeeFrameIsPresent(void);
@@ -93,6 +95,6 @@ void WaterPlant(char operationId[]);
 void SetWaterPumpToAndNotifyCoordinator(bool state, char operationId[]);
 void SendCompletedOperationToCoordinator(char operationId[]);
 void PrepareFrameToSend(char frame[], char data[], int framePrefix);
-uint16_t ReadAmbiantTemperature(void);
+float ReadTemperature(void);
 uint16_t ReadSoilHumidity(void);
 uint16_t ReadWaterLevel(void);

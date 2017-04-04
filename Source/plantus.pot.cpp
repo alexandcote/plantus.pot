@@ -19,7 +19,6 @@ Serial pc(USBTX, USBRX);   // tx, rx
 #define INFO_PRINTXYZ(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);}
 #define INFO_PRINTXYZNL(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);  pc.printf("\r\n");}
 
-DigitalOut waterPump(p21);
 DigitalOut LEDs[4] = {
     DigitalOut(LED1), DigitalOut(LED2), DigitalOut(LED3), DigitalOut(LED4)
 };
@@ -27,23 +26,33 @@ LocalFileSystem local("local");
 Thread eventQueueThread;
 EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
 XBeeZB xBee = XBeeZB(p13, p14, p8, NC, NC, XBEE_BAUD_RATE);
+TSL2561 tsl2561(p9, p10);  // luminosity sensor
+AnalogIn tmp36(p19);       // temperature sensor
+DigitalOut waterPump(p21);
 
-char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
-
-void ReadCaptors(TSL2561 *tsl2561) {
-    uint16_t readLuminosity = tsl2561->getLuminosity(CHANNEL_0);
-    INFO_PRINTXYNL(INFO, "read Luminosity = '0x%X'", readLuminosity);
-    uint16_t readAmbianteTemperature = ReadAmbiantTemperature(); 
-    INFO_PRINTXYNL(INFO, "read Ambiant Temperature = '0x%X'", readAmbianteTemperature);
+void ReadCaptors(void) {
+    uint16_t readLuminosity = tsl2561.getLuminosity(CHANNEL_0);
+    uint16_t readLuminosityHigh = readLuminosity >> 8;
+    uint16_t readLuminosityLow = readLuminosity & 0xFF;
+    INFO_PRINTXYZNL(INFO, "read Luminosity = '0x%X%X'", readLuminosityHigh, readLuminosityLow);
+    float readTemperature = ReadTemperature(); 
+    INFO_PRINTXYNL(INFO, "read Temperature = '%4.2f C'", readTemperature);
     uint16_t readSoilHumidity = ReadSoilHumidity();
     INFO_PRINTXYNL(INFO, "read Soil Humidity = '0x%X'", readSoilHumidity);
     uint16_t readWaterLevel = ReadWaterLevel(); 
     INFO_PRINTXYNL(INFO, "read Water level = '%i'", readWaterLevel);    
 
-            
-    luminosity[0] = readLuminosity >> 8;         // high luminosity
-    luminosity[1] = readLuminosity & 0xFF;       // low luminosity
-    ambiantTemperature[0] = readAmbianteTemperature; 
+    luminosity[0] = readLuminosityHigh;
+    luminosity[1] = readLuminosityLow;
+
+    snprintf(temperature, sizeof(temperature), "%f", readTemperature);
+    INFO_PRINTXYNL(INFO, "Temperature buffer is '%s'", temperature);
+
+    float temperatureTest;
+    sscanf(temperature,"%f",&temperatureTest);
+    INFO_PRINTXYNL(INFO, "temperatureTest = '%4.2f C'", temperatureTest);
+
+
     soilHumidity[0] = readSoilHumidity;
     waterLevel[0] = readWaterLevel;
 
@@ -52,12 +61,21 @@ void ReadCaptors(TSL2561 *tsl2561) {
 
 void CreateDataFrame(void) {
     frameData[0] = FRAME_PREFIX_NEW_DATA;
+
     frameData[1] = luminosity[0];        // High luminosity
     frameData[2] = luminosity[1];        // Low luminosity
-    frameData[3] = ambiantTemperature[0];
-    frameData[4] = soilHumidity[0];
-    frameData[5] = waterLevel[0]; 
-    SendFrameToCoordinator(frameData, DATA_LENGTH);
+
+    frameData[3] = temperature[0];       // example : 24.20
+    frameData[4] = temperature[1];
+    frameData[5] = temperature[2];
+    frameData[6] = temperature[3];
+    frameData[7] = temperature[4];
+    frameData[8] = temperature[5];
+
+    frameData[9] = soilHumidity[0];
+
+    frameData[10] = waterLevel[0]; 
+    SendFrameToCoordinator(frameData, sizeof(frameData));
 }
 
 uint16_t ReadSoilHumidity(void) {
@@ -65,9 +83,11 @@ uint16_t ReadSoilHumidity(void) {
     return 0xFF;
 }
 
-uint16_t ReadAmbiantTemperature(void) {
-    // TODO read ambiant Humidity
-    return 0xAA;
+float ReadTemperature(void) {
+    float tempC;
+    tempC = ((tmp36.read()*3.3)-TMP36VoltageOffset)*-100.0;
+    DEBUG_PRINTXYNL(DEBUG, "Temperature is '%4.2f C'", tempC);
+    return tempC;
 }
 
 uint16_t ReadWaterLevel(void) {
@@ -245,10 +265,10 @@ void SetupXBee(uint16_t panID) {
     INFO_PRINTXNL(INFO, "XBee initialization finished successfully!\r\n");
 }
 
-void StartEventQueue(TSL2561 *tsl2561, uint16_t periode) {
+void StartEventQueue(uint16_t periode) {
     INFO_PRINTXYNL(INFO, "Starting event queue, reading captors at '%ims'\r\n", periode);
 
-    eventQueue.call_every(periode, ReadCaptors, tsl2561);
+    eventQueue.call_every(periode, ReadCaptors);
     eventQueue.call_every(1000, FlashLed, 3);  // just so we can see the event queue still runs
     eventQueue.call_every(100, CheckIfNewXBeeFrameIsPresent);
     eventQueue.call_every(30000, SendPotIdentifierToCoordinator);
@@ -262,10 +282,10 @@ int main() {
     SetLedTo(0, true); // Init LED on
 
     waterPump = false;
-    TSL2561 tsl2561(p9, p10);  // luminosity captor
+
     ReadConfigFile(&periode, &panID);
     SetupXBee(panID);
-    StartEventQueue(&tsl2561, periode);
+    StartEventQueue(periode);
 
     SetLedTo(0, false); // Init LED off
     while (true) {
