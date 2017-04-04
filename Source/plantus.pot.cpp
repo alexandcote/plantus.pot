@@ -28,6 +28,8 @@ Thread eventQueueThread;
 EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
 XBeeZB xBee = XBeeZB(p13, p14, p8, NC, NC, XBEE_BAUD_RATE);
 
+char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
+
 void ReadCaptors(TSL2561 *tsl2561) {
     uint16_t readLuminosity = tsl2561->getLuminosity(CHANNEL_0);
     INFO_PRINTXYNL(INFO, "read Luminosity = '0x%X'", readLuminosity);
@@ -73,25 +75,6 @@ uint16_t ReadWaterLevel(void) {
     return 0xAB;
 }
 
-void FlashLed(uint16_t led) {
-    LEDs[led] = !LEDs[led];
-}
-
-void SetLedTo(uint16_t led, bool state) {
-    LEDs[led] = state;
-}
-
-void GetMacAddress(char *macAdr) {
-    mbed_mac_address(macAdr);
-    #if DEBUG
-    DEBUG_PRINTX(DEBUG, "\r\nmBed Mac Adress = ");
-     for(int i=0; i<MAC_ADR_LENGTH; i++) {
-        DEBUG_PRINTXY(DEBUG, "%02X ", macAdr[i]);      
-    }   
-    DEBUG_PRINTXNL(DEBUG, "\n\r");
-    #endif
-}
-
 void SendFrameToCoordinator(char frame[], uint16_t frameLength) {  
     DEBUG_PRINTXNL(DEBUG, "sending frame :");
     for(int i = 0; i < frameLength; i++) {
@@ -108,35 +91,37 @@ void SendFrameToCoordinator(char frame[], uint16_t frameLength) {
 
 void SendPotIdentifierToCoordinator(void) {
     INFO_PRINTXNL(INFO, "Sending pot Identifier to coordinator...");
-
-    char framePotIdentifier[FRAME_PREFIX_LENGTH + POT_IDENTIFIER_LENGTH];
-    memset(framePotIdentifier, 0, sizeof framePotIdentifier); // start with fresh values
-    framePotIdentifier[0] = FRAME_PREFIX_ADD_POT_IDENTIFIER;
-    strcat(framePotIdentifier, potIdentifier);
-    SendFrameToCoordinator(framePotIdentifier, strlen(framePotIdentifier));
+    char frame[FRAME_PREFIX_LENGTH + POT_IDENTIFIER_LENGTH];
+    PrepareFrameToSend(frame, potIdentifier, FRAME_PREFIX_ADD_POT_IDENTIFIER);
+    SendFrameToCoordinator(frame, strlen(frame));
 }
 
-void WetPlant(const char operationId[]) {
-    DEBUG_PRINTXYZNL(INFO, "Going to wet plant for %ums! operation id is '%s'", pumpActivationTime, operationId);
+void WaterPlant(char operationId[]) {
+    INFO_PRINTXYZNL(INFO, "Going to wet plant for %ums! operation id is '%s'", pumpActivationTime, operationId);
+    // make global copy to use with the event queue
+    memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
+    strcat(globalOperationId, operationId);
     waterPump = true;
-    eventQueue.call_in(pumpActivationTime, SetWaterPumpTo, false);
-    // TODO should be after the pump is turned off but memory problems when passing array through event queue...
+    eventQueue.call_in(pumpActivationTime, SetWaterPumpToAndNotifyCoordinator, false, globalOperationId);
+}
+
+void SetWaterPumpToAndNotifyCoordinator(bool state, char operationId[]) {
+    INFO_PRINTXYZNL(INFO, "Setting water pump to '%s' and operationId is '%s'", state ? "ON" : "OFF", operationId);
+    waterPump = state;
     SendCompletedOperationToCoordinator(operationId);
 }
 
-void SetWaterPumpTo(bool state) {
-    DEBUG_PRINTXYNL(INFO, "Setting water pump to '%s'", state ? "ON" : "OFF");
-    waterPump = state;
+void PrepareFrameToSend(char frame[], char data[], int framePrefix) {
+    memset(frame, 0, sizeof(frame)); // start with fresh values
+    frame[0] = framePrefix;
+    strcat(frame, data);
 }
 
-void SendCompletedOperationToCoordinator(const char operationId[]) {
+void SendCompletedOperationToCoordinator(char operationId[]) {
     INFO_PRINTXYNL(INFO, "Sending Operation id '%s' completed to coordinator", operationId);
-
-    char frameOperationCompleted[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
-    memset(frameOperationCompleted, 0, sizeof(frameOperationCompleted)); // start with fresh values
-    frameOperationCompleted[0] = FRAME_PREFIX_COMPLETED_OPERATION;
-    strcat(frameOperationCompleted, operationId);
-    SendFrameToCoordinator(frameOperationCompleted, strlen(frameOperationCompleted));
+    char frame[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
+    PrepareFrameToSend(frame, operationId, FRAME_PREFIX_COMPLETED_OPERATION);
+    SendFrameToCoordinator(frame, strlen(frame));
 }
 
 void AlternateWaterPump(char operationId[]) {
@@ -145,8 +130,7 @@ void AlternateWaterPump(char operationId[]) {
     SendCompletedOperationToCoordinator(operationId);
 }
 
-void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, const uint8_t *const frame, uint16_t frameLength)
-{
+void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, const uint8_t *const frame, uint16_t frameLength) {
     INFO_PRINTXNL(INFO, "New frame received!");
 
     #if DEBUG
@@ -176,15 +160,14 @@ void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, con
                 for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
                 INFO_PRINTXYNL(INFO, "operation id is '%s'", operationId);
-                WetPlant(operationId);
+                WaterPlant(operationId);
                 break;
 
             case FRAME_PREFIX_TURN_WATER_PUMP_OFF:
                 INFO_PRINTXNL(INFO, "Turn off water pump frame detected!");
                 for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
-                SetWaterPumpTo(false);
-                SendCompletedOperationToCoordinator(operationId);
+                SetWaterPumpToAndNotifyCoordinator(false, operationId);
                 break; 
 
             case FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE:     
@@ -262,13 +245,13 @@ void SetupXBee(uint16_t panID) {
     INFO_PRINTXNL(INFO, "XBee initialization finished successfully!\r\n");
 }
 
-void EventQueueThread(TSL2561 *tsl2561, uint16_t periode) {
+void StartEventQueue(TSL2561 *tsl2561, uint16_t periode) {
     INFO_PRINTXYNL(INFO, "Starting event queue, reading captors at '%ims'\r\n", periode);
 
     eventQueue.call_every(periode, ReadCaptors, tsl2561);
     eventQueue.call_every(1000, FlashLed, 3);  // just so we can see the event queue still runs
     eventQueue.call_every(100, CheckIfNewXBeeFrameIsPresent);
-    eventQueue.call_every(120000, SendPotIdentifierToCoordinator);
+    eventQueue.call_every(30000, SendPotIdentifierToCoordinator);
     eventQueueThread.start(callback(&eventQueue, &EventQueue::dispatch_forever));
 
     DEBUG_PRINTXNL(DEBUG, "Event queue thread started sucessfully!\r\n");
@@ -282,7 +265,7 @@ int main() {
     TSL2561 tsl2561(p9, p10);  // luminosity captor
     ReadConfigFile(&periode, &panID);
     SetupXBee(panID);
-    EventQueueThread(&tsl2561, periode);
+    StartEventQueue(&tsl2561, periode);
 
     SetLedTo(0, false); // Init LED off
     while (true) {
@@ -290,3 +273,21 @@ int main() {
     }
 }
 
+void FlashLed(uint16_t led) {
+    LEDs[led] = !LEDs[led];
+}
+
+void SetLedTo(uint16_t led, bool state) {
+    LEDs[led] = state;
+}
+
+void GetMacAddress(char *macAdr) {
+    mbed_mac_address(macAdr);
+    #if DEBUG
+    DEBUG_PRINTX(DEBUG, "\r\nmBed Mac Adress = ");
+     for(int i=0; i<MAC_ADR_LENGTH; i++) {
+        DEBUG_PRINTXY(DEBUG, "%02X ", macAdr[i]);      
+    }   
+    DEBUG_PRINTXNL(DEBUG, "\n\r");
+    #endif
+}
