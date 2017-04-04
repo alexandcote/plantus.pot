@@ -107,7 +107,8 @@ void SendFrameToCoordinator(char frame[], uint16_t frameLength) {
 }
 
 void SendPotIdentifierToCoordinator(void) {
-    DEBUG_PRINTXNL(DEBUG, "Sending pot Identifier to coordinator...");
+    INFO_PRINTXNL(INFO, "Sending pot Identifier to coordinator...");
+
     char framePotIdentifier[FRAME_PREFIX_LENGTH + POT_IDENTIFIER_LENGTH];
     memset(framePotIdentifier, 0, sizeof framePotIdentifier); // start with fresh values
     framePotIdentifier[0] = FRAME_PREFIX_ADD_POT_IDENTIFIER;
@@ -115,12 +116,24 @@ void SendPotIdentifierToCoordinator(void) {
     SendFrameToCoordinator(framePotIdentifier, strlen(framePotIdentifier));
 }
 
-void SetWaterPumpTo(bool state, char operationId[]) {
-    DEBUG_PRINTXYNL(DEBUG, "Setting water pump to %s", state ? "ON" : "OFF");
+void WetPlant(const char operationId[]) {
+    DEBUG_PRINTXYZNL(INFO, "Going to wet plant for %ums! operation id is '%s'", pumpActivationTime, operationId);
+    waterPump = true;
+    eventQueue.call_in(pumpActivationTime, SetWaterPumpTo, false);
+    // TODO should be after the pump is turned off but memory problems when passing array through event queue...
+    SendCompletedOperationToCoordinator(operationId);
+}
+
+void SetWaterPumpTo(bool state) {
+    DEBUG_PRINTXYNL(INFO, "Setting water pump to '%s'", state ? "ON" : "OFF");
     waterPump = state;
-    DEBUG_PRINTXYNL(DEBUG, "Sending Operation id '%s' completed to coordinator", operationId);
+}
+
+void SendCompletedOperationToCoordinator(const char operationId[]) {
+    INFO_PRINTXYNL(INFO, "Sending Operation id '%s' completed to coordinator", operationId);
+
     char frameOperationCompleted[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
-    memset(frameOperationCompleted, 0, sizeof frameOperationCompleted); // start with fresh values
+    memset(frameOperationCompleted, 0, sizeof(frameOperationCompleted)); // start with fresh values
     frameOperationCompleted[0] = FRAME_PREFIX_COMPLETED_OPERATION;
     strcat(frameOperationCompleted, operationId);
     SendFrameToCoordinator(frameOperationCompleted, strlen(frameOperationCompleted));
@@ -129,52 +142,58 @@ void SetWaterPumpTo(bool state, char operationId[]) {
 void AlternateWaterPump(char operationId[]) {
     INFO_PRINTXNL(INFO, "Alternating water pump state");
     waterPump = !waterPump;
-
-    INFO_PRINTXYNL(INFO, "Sending Operation id '%s' completed to coordinator", operationId);
-    char frameOperationCompleted[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
-    memset(frameOperationCompleted, 0, sizeof frameOperationCompleted); // start with fresh values
-    frameOperationCompleted[0] = FRAME_PREFIX_COMPLETED_OPERATION;
-    strcat(frameOperationCompleted, operationId);
-    SendFrameToCoordinator(frameOperationCompleted, strlen(frameOperationCompleted));
+    SendCompletedOperationToCoordinator(operationId);
 }
 
-void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, const uint8_t *const frame, uint16_t len)
+void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, const uint8_t *const frame, uint16_t frameLength)
 {
     INFO_PRINTXNL(INFO, "New frame received!");
-    uint64_t remote64Adress = remoteNode.get_addr64();
-    uint32_t highAdr = remote64Adress >> 32;
-    uint32_t lowAdr = remote64Adress;
-    DEBUG_PRINTXYZNL(DEBUG, "\r\nGot a %s RX packet of length '%d'", broadcast ? "BROADCAST" : "UNICAST", len);
 
-    DEBUG_PRINTXYZNL(DEBUG, "16 bit remote address is: '0x%X' and it is '%s'", remoteNode.get_addr16(), remoteNode.is_valid_addr16b() ? "valid" : "invalid");
-    DEBUG_PRINTXYZ(DEBUG, "64 bit remote address is: '0x%X%X'", highAdr, lowAdr);
-    DEBUG_PRINTXYNL(DEBUG, "and it is '%s'", remoteNode.is_valid_addr64b() ? "valid" : "invalid");
+    #if DEBUG
+        uint64_t remote64Adress = remoteNode.get_addr64();
+        uint32_t highAdr = remote64Adress >> 32;
+        uint32_t lowAdr = remote64Adress;
+        DEBUG_PRINTXYZNL(DEBUG, "\r\nGot a %s RX packet of length '%d'", broadcast ? "BROADCAST" : "UNICAST", frameLength);
 
-    DEBUG_PRINTX(DEBUG, "Frame is: ");
-    for (int i = 0; i < len; i++)
-        DEBUG_PRINTXY(DEBUG, "0x%X ", frame[i]);
-    DEBUG_PRINTXNL(DEBUG, "\r\n");
+        DEBUG_PRINTXYZNL(DEBUG, "16 bit remote address is: '0x%X' and it is '%s'", remoteNode.get_addr16(), remoteNode.is_valid_addr16b() ? "valid" : "invalid");
+        DEBUG_PRINTXYZ(DEBUG, "64 bit remote address is: '0x%X%X'", highAdr, lowAdr);
+        DEBUG_PRINTXYNL(DEBUG, "and it is '%s'", remoteNode.is_valid_addr64b() ? "valid" : "invalid");
+
+        DEBUG_PRINTX(DEBUG, "Frame is: ");
+        for (int i = 0; i < frameLength; i++)
+            DEBUG_PRINTXY(DEBUG, "0x%X ", frame[i]);
+        DEBUG_PRINTXNL(DEBUG, "\r\n");
+    #endif
 
     if(remoteNode.get_addr16() == COORDINATOR_16BIT_ADDRESS) {
-        char operationId[OPERATION_ID_MAX_LENGTH];
-        memset(operationId, 0, sizeof operationId); // start with fresh values
-        DEBUG_PRINTXYNL(DEBUG, "Frame[0] = '0x%X'", frame[0]);
+        DEBUG_PRINTXYNL(DEBUG, "Frame prefix = '0x%X'", frame[0]);
         switch(frame[0]) {
+            char operationId[OPERATION_ID_MAX_LENGTH];
+            memset(operationId, 0, sizeof(operationId)); // start with fresh values
+
             case FRAME_PREFIX_TURN_WATER_PUMP_ON:
-                for(int i = 1; i < len; i++) 
+                INFO_PRINTXNL(INFO, "Water plant frame detected!");
+                for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
-                SetWaterPumpTo(true, operationId);
+                INFO_PRINTXYNL(INFO, "operation id is '%s'", operationId);
+                WetPlant(operationId);
                 break;
+
             case FRAME_PREFIX_TURN_WATER_PUMP_OFF:
-                for(int i = 1; i < len; i++) 
+                INFO_PRINTXNL(INFO, "Turn off water pump frame detected!");
+                for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
-                SetWaterPumpTo(false, operationId);
+                SetWaterPumpTo(false);
+                SendCompletedOperationToCoordinator(operationId);
                 break; 
-            case FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE:            
-                for(int i = 1; i < len; i++) 
+
+            case FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE:     
+                INFO_PRINTXNL(INFO, "Alternate water pump state frame detected!");       
+                for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
                 AlternateWaterPump(operationId);
                 break;
+
             default:
                 INFO_PRINTXYNL(INFO, "Unknown frame '0x%X' detected, nothing will be done!", frame[0]);
                 break;
@@ -210,7 +229,7 @@ void ReadConfigFile(uint16_t *periode, uint16_t *panID) {
     INFO_PRINTXNL(INFO, "Reading configuration file finished.\r\n");
 }
 
-void CheckIfNewFrameIsPresent(void) {
+void CheckIfNewXBeeFrameIsPresent(void) {
     xBee.process_rx_frames();
 }
 
@@ -247,8 +266,9 @@ void EventQueueThread(TSL2561 *tsl2561, uint16_t periode) {
     INFO_PRINTXYNL(INFO, "Starting event queue, reading captors at '%ims'\r\n", periode);
 
     eventQueue.call_every(periode, ReadCaptors, tsl2561);
-    eventQueue.call_every(periode, FlashLed, 3);  // just so we can see the event queue still runs
-    eventQueue.call_every(100, CheckIfNewFrameIsPresent);
+    eventQueue.call_every(1000, FlashLed, 3);  // just so we can see the event queue still runs
+    eventQueue.call_every(100, CheckIfNewXBeeFrameIsPresent);
+    eventQueue.call_every(120000, SendPotIdentifierToCoordinator);
     eventQueueThread.start(callback(&eventQueue, &EventQueue::dispatch_forever));
 
     DEBUG_PRINTXNL(DEBUG, "Event queue thread started sucessfully!\r\n");
@@ -260,7 +280,6 @@ int main() {
 
     waterPump = false;
     TSL2561 tsl2561(p9, p10);  // luminosity captor
-    //GetMacAddress(macAdr);
     ReadConfigFile(&periode, &panID);
     SetupXBee(panID);
     EventQueueThread(&tsl2561, periode);

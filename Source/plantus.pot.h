@@ -54,6 +54,7 @@ using namespace XBeeLib;
 uint16_t periode;
 uint16_t panID; 
 uint8_t remoteNodesCount = 0;
+uint16_t pumpActivationTime = 5000; // ms
 
 // global variables
 ConfigFile cfg;
@@ -86,11 +87,13 @@ void EventQueueThread(TSL2561 *tsl2561, uint16_t periode);
 void GetMacAddress(char *macAdr);
 void CreateDataFrame(void);
 void DiscoverAllNodes(void);
-void CheckIfNewFrameIsPresent(void);
+void CheckIfNewXBeeFrameIsPresent(void);
 void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, const uint8_t *const data, uint16_t len);
 void SendPotIdentifierToCoordinator(void);
-void SetWaterPumpTo(bool state, char operationId[]);
 void AlternateWaterPump(char operationId[]);
+void WetPlant(const char operationId[]);
+void SetWaterPumpTo(bool state);
+void SendCompletedOperationToCoordinator(const char operationId[]);
 uint16_t ReadAmbiantTemperature(void);
 uint16_t ReadSoilHumidity(void);
 uint16_t ReadWaterLevel(void);
