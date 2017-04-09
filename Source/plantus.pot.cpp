@@ -27,8 +27,8 @@ uint16_t ReadSoilHumidity(void) {
 
 float ReadTemperature(void) {
     float tempC1, tempC2, average;
-    tempC1 = ((tmp36_1 * 3.3) * 100 - 50)*-1;
-    tempC2 = ((tmp36_2 * 3.3) * 100 - 50)*-1;
+    tempC1 = ((tmp36_1 * 3.3) * 100 - 50);
+    tempC2 = ((tmp36_2 * 3.3) * 100 - 50);
     average = (tempC1 + tempC2) / 2;
     DEBUG_PRINTXYNL(DEBUG, "Temperature 1 is '%4.2f C'", tempC1);
     DEBUG_PRINTXYNL(DEBUG, "Temperature 2 is '%4.2f C'", tempC2);
