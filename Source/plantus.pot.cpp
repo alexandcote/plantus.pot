@@ -1,30 +1,5 @@
 #include "plantus.pot.h"
 
-Serial pc(USBTX, USBRX);   // tx, rx
-#define DEBUG_PRINTX(DEBUG, x) if(DEBUG) {pc.printf(x);}
-#define DEBUG_PRINTXNL(DEBUG, x) if(DEBUG) {pc.printf(x);               pc.printf("\r\n");}
-#define DEBUG_PRINTXY(DEBUG, x, y) if(DEBUG) {pc.printf(x, y);}
-#define DEBUG_PRINTXYNL(DEBUG, x, y) if(DEBUG) {pc.printf(x, y);         pc.printf("\r\n");}
-#define DEBUG_PRINTXYZ(DEBUG, x, y, z) if(DEBUG) {pc.printf(x, y, z);}
-#define DEBUG_PRINTXYZNL(DEBUG, x, y, z) if(DEBUG) {pc.printf(x, y, z);  pc.printf("\r\n");}
-#define INFO_PRINTX(DEBUG, x) if(INFO) {pc.printf(x);}
-#define INFO_PRINTXNL(DEBUG, x) if(INFO) {pc.printf(x);               pc.printf("\r\n");}
-#define INFO_PRINTXY(DEBUG, x, y) if(INFO) {pc.printf(x, y);}
-#define INFO_PRINTXYNL(DEBUG, x, y) if(INFO) {pc.printf(x, y);         pc.printf("\r\n");}
-#define INFO_PRINTXYZ(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);}
-#define INFO_PRINTXYZNL(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);  pc.printf("\r\n");}
-
-DigitalOut LEDs[4] = {
-    DigitalOut(LED1), DigitalOut(LED2), DigitalOut(LED3), DigitalOut(LED4)
-};
-LocalFileSystem local("local");
-Thread eventQueueThread;
-EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
-XBeeZB xBee = XBeeZB(p13, p14, p8, NC, NC, XBEE_BAUD_RATE);
-TSL2561 tsl2561(p9, p10);  // luminosity sensor
-AnalogIn tmp36(p19);       // temperature sensor
-DigitalOut waterPump(p21);
-
 void ReadCaptors(void) {
     uint16_t luminosityPercent = ReadLuminosityPercent();
     luminosity[0] = luminosityPercent;
@@ -51,10 +26,14 @@ uint16_t ReadSoilHumidity(void) {
 }
 
 float ReadTemperature(void) {
-    float tempC;
-    tempC = ((tmp36.read()*3.3)-TMP36VoltageOffset)*-100.0;
-    DEBUG_PRINTXYNL(DEBUG, "Temperature is '%4.2f C'", tempC);
-    return tempC;
+    float tempC1, tempC2, average;
+    tempC1 = ((tmp36_1*3.3)-0.500)*-100.0;
+    tempC2 = ((tmp36_2*3.3)-0.500)*-100.0;
+    average = (tempC1 + tempC2) / 2;
+    DEBUG_PRINTXYNL(DEBUG, "Temperature 1 is '%4.2f C'", tempC1);
+    DEBUG_PRINTXYNL(DEBUG, "Temperature 2 is '%4.2f C'", tempC2);
+    DEBUG_PRINTXYNL(DEBUG, "Average temperature is '%4.2f C'", average);
+    return average;
 }
 
 uint16_t ReadLuminosityPercent(void) {

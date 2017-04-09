@@ -58,7 +58,6 @@ uint16_t periode;
 uint16_t panID; 
 uint8_t remoteNodesCount = 0;
 uint16_t pumpActivationTime = 5000; // ms
-const float TMP36VoltageOffset = 0.500;
 const char framePrefixNewData = {FRAME_PREFIX_NEW_DATA};
 char potIdentifier[POT_IDENTIFIER_LENGTH];
 char luminosity[LUMINOSITY_DATA_LENGTH];
@@ -66,17 +65,26 @@ char temperature[TEMPERATURE_DATA_LENGTH];
 char soilHumidity[SOIL_HUMIDITY_DATA_LENGTH];
 char waterLevel[WATER_LEVEL_DATA_LENGTH];
 char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
-RemoteXBeeZB remoteNodesInNetwork[MAX_NODES];
-ConfigFile cfg;
 
+Thread eventQueueThread;
+EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
+XBeeZB xBee = XBeeZB(p13, p14, p8, NC, NC, XBEE_BAUD_RATE);
 // peripherals
-extern Serial pc;
-extern DigitalOut LEDs[4];
-extern LocalFileSystem local;
-extern ConfigFile cfg;
-extern TSL2561 tsl2561;
-extern DigitalOut waterPump;
-extern AnalogIn tmp36;
+Serial pc(USBTX, USBRX);   // tx, rx
+DigitalOut LEDs[4] = {
+    DigitalOut(LED1), DigitalOut(LED2), DigitalOut(LED3), DigitalOut(LED4)
+};
+LocalFileSystem local("local");
+ConfigFile cfg;
+TSL2561 tsl2561(p9, p10);  // luminosity sensor
+// setting unused analog input pins to digital outputs reduces A/D noise a bit
+DigitalOut P16(p16);
+DigitalOut P17(p17);
+DigitalOut P18(p18);
+AnalogIn tmp36_1(p19);       // temperature sensor 1
+AnalogIn tmp36_2(p20);       // temperature sensor 2
+DigitalOut waterPump(p21);
+
 
 // prototypes
 extern "C" void mbed_mac_address(char *mac);
@@ -102,3 +110,17 @@ float ReadTemperature(void);
 uint16_t ReadSoilHumidity(void);
 uint16_t ReadWaterLevel(void);
 uint16_t ReadLuminosityPercent(void);
+
+
+#define DEBUG_PRINTX(DEBUG, x) if(DEBUG) {pc.printf(x);}
+#define DEBUG_PRINTXNL(DEBUG, x) if(DEBUG) {pc.printf(x);               pc.printf("\r\n");}
+#define DEBUG_PRINTXY(DEBUG, x, y) if(DEBUG) {pc.printf(x, y);}
+#define DEBUG_PRINTXYNL(DEBUG, x, y) if(DEBUG) {pc.printf(x, y);         pc.printf("\r\n");}
+#define DEBUG_PRINTXYZ(DEBUG, x, y, z) if(DEBUG) {pc.printf(x, y, z);}
+#define DEBUG_PRINTXYZNL(DEBUG, x, y, z) if(DEBUG) {pc.printf(x, y, z);  pc.printf("\r\n");}
+#define INFO_PRINTX(DEBUG, x) if(INFO) {pc.printf(x);}
+#define INFO_PRINTXNL(DEBUG, x) if(INFO) {pc.printf(x);               pc.printf("\r\n");}
+#define INFO_PRINTXY(DEBUG, x, y) if(INFO) {pc.printf(x, y);}
+#define INFO_PRINTXYNL(DEBUG, x, y) if(INFO) {pc.printf(x, y);         pc.printf("\r\n");}
+#define INFO_PRINTXYZ(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);}
+#define INFO_PRINTXYZNL(DEBUG, x, y, z) if(INFO) {pc.printf(x, y, z);  pc.printf("\r\n");}
