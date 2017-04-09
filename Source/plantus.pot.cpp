@@ -106,8 +106,6 @@ void CreateDataFrameAndSendToCoordinator(void) {
     SendFrameToCoordinator(frameData, sizeof(frameData));
 }
 
-
-
 void SendFrameToCoordinator(char frame[], uint16_t frameLength) {  
     DEBUG_PRINTXNL(DEBUG, "sending frame :");
     for(int i = 0; i < frameLength; i++) {
@@ -131,9 +129,6 @@ void SendPotIdentifierToCoordinator(void) {
 
 void WaterPlant(char operationId[]) {
     INFO_PRINTXYZNL(INFO, "Going to wet plant for %ums! operation id is '%s'", pumpActivationTime, operationId);
-    // make global copy to use with the event queue
-    memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
-    strcat(globalOperationId, operationId);
     waterPump = true;
     eventQueue.call_in(pumpActivationTime, SetWaterPumpToAndNotifyCoordinator, false, globalOperationId);
 }
@@ -188,26 +183,35 @@ void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, con
             char operationId[OPERATION_ID_MAX_LENGTH];
             memset(operationId, 0, sizeof(operationId)); // start with fresh values
 
-            case FRAME_PREFIX_TURN_WATER_PUMP_ON:
+            case FRAME_PREFIX_WATER_PLANT:
                 INFO_PRINTXNL(INFO, "Water plant frame detected!");
                 for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
                 INFO_PRINTXYNL(INFO, "operation id is '%s'", operationId);
-                WaterPlant(operationId);
+                // make global copy to use with the event queue
+                memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
+                strcat(globalOperationId, operationId);
+                eventQueue.call(WaterPlant, globalOperationId);
                 break;
 
             case FRAME_PREFIX_TURN_WATER_PUMP_OFF:
                 INFO_PRINTXNL(INFO, "Turn off water pump frame detected!");
                 for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
-                SetWaterPumpToAndNotifyCoordinator(false, operationId);
+                // make global copy to use with the event queue
+                memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
+                strcat(globalOperationId, operationId);
+                eventQueue.call(SetWaterPumpToAndNotifyCoordinator, false, globalOperationId);
                 break; 
 
             case FRAME_PREFIX_ALTERNATE_WATER_PUMP_STATE:     
                 INFO_PRINTXNL(INFO, "Alternate water pump state frame detected!");       
                 for(int i = 1; i < frameLength; i++) 
                     operationId[i-1] = frame[i];
-                AlternateWaterPump(operationId);
+                // make global copy to use with the event queue
+                memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
+                strcat(globalOperationId, operationId);
+                eventQueue.call(AlternateWaterPump, globalOperationId);
                 break;
 
             default:
