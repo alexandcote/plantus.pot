@@ -1,10 +1,5 @@
 #include "plantus.pot.h"
-/* TODO list:
-    Read soil moisture lvl
-    Read ambiant moisture lvl
-    Receive actions from coordinator
-    Activate pump until humidity lvl is adequate or set of time?
-*/
+
 Serial pc(USBTX, USBRX);   // tx, rx
 #define DEBUG_PRINTX(DEBUG, x) if(DEBUG) {pc.printf(x);}
 #define DEBUG_PRINTXNL(DEBUG, x) if(DEBUG) {pc.printf(x);               pc.printf("\r\n");}
@@ -31,56 +26,28 @@ AnalogIn tmp36(p19);       // temperature sensor
 DigitalOut waterPump(p21);
 
 void ReadCaptors(void) {
-    uint16_t readLuminosity = tsl2561.getLuminosity(CHANNEL_0);
-    uint16_t readLuminosityHigh = readLuminosity >> 8;
-    uint16_t readLuminosityLow = readLuminosity & 0xFF;
-    INFO_PRINTXYZNL(INFO, "read Luminosity = '0x%X%X'", readLuminosityHigh, readLuminosityLow);
+    uint16_t luminosityPercent = ReadLuminosityPercent();
+    luminosity[0] = luminosityPercent;
+    INFO_PRINTXYNL(INFO, "Luminosity pourcentage = '%d'", luminosityPercent);
+
     float readTemperature = ReadTemperature(); 
+    snprintf(temperature, sizeof(temperature), "%f", readTemperature);
     INFO_PRINTXYNL(INFO, "read Temperature = '%4.2f C'", readTemperature);
+
     uint16_t readSoilHumidity = ReadSoilHumidity();
+    soilHumidity[0] = readSoilHumidity;
     INFO_PRINTXYNL(INFO, "read Soil Humidity = '0x%X'", readSoilHumidity);
+
     uint16_t readWaterLevel = ReadWaterLevel(); 
+    waterLevel[0] = readWaterLevel;
     INFO_PRINTXYNL(INFO, "read Water level = '%i'", readWaterLevel);    
 
-    luminosity[0] = readLuminosityHigh;
-    luminosity[1] = readLuminosityLow;
-
-    snprintf(temperature, sizeof(temperature), "%f", readTemperature);
-    INFO_PRINTXYNL(INFO, "Temperature buffer is '%s'", temperature);
-
-    float temperatureTest;
-    sscanf(temperature,"%f",&temperatureTest);
-    INFO_PRINTXYNL(INFO, "temperatureTest = '%4.2f C'", temperatureTest);
-
-
-    soilHumidity[0] = readSoilHumidity;
-    waterLevel[0] = readWaterLevel;
-
-    CreateDataFrame();
-}
-
-void CreateDataFrame(void) {
-    frameData[0] = FRAME_PREFIX_NEW_DATA;
-
-    frameData[1] = luminosity[0];        // High luminosity
-    frameData[2] = luminosity[1];        // Low luminosity
-
-    frameData[3] = temperature[0];       // example : 24.20
-    frameData[4] = temperature[1];
-    frameData[5] = temperature[2];
-    frameData[6] = temperature[3];
-    frameData[7] = temperature[4];
-    frameData[8] = temperature[5];
-
-    frameData[9] = soilHumidity[0];
-
-    frameData[10] = waterLevel[0]; 
-    SendFrameToCoordinator(frameData, sizeof(frameData));
+    CreateDataFrameAndSendToCoordinator();
 }
 
 uint16_t ReadSoilHumidity(void) {
     // TODO read analog
-    return 0xFF;
+    return 17;
 }
 
 float ReadTemperature(void) {
@@ -90,10 +57,56 @@ float ReadTemperature(void) {
     return tempC;
 }
 
+uint16_t ReadLuminosityPercent(void) {
+    uint16_t readLuminosity = tsl2561.getFullLuminosity(); // visible + infrared 
+    uint16_t luminosityPercent = (readLuminosity* 100) /  MAX_LUMINOSITY;
+    uint16_t readLuminosityHigh = readLuminosity >> 8;
+    uint16_t readLuminosityLow = readLuminosity & 0xFF;
+
+    DEBUG_PRINTXYZNL(DEBUG, "read Luminosity = '0x%X%X'", readLuminosityHigh, readLuminosityLow);
+    DEBUG_PRINTXYNL(DEBUG, "Luminosity pourcent = '%d'", luminosityPercent);
+    return luminosityPercent;
+}
+
 uint16_t ReadWaterLevel(void) {
     //TODO read water level
-    return 0xAB;
+    return 20;
 }
+
+int InsertDataToFrame(int frameIndexOffset, const int maxIndex, const char data[], char frame[]) {
+    int dataIndex = 0;
+    for(int i = frameIndexOffset; i < maxIndex; i++) {
+        DEBUG_PRINTXYZNL(DEBUG, "Inserting '0x%X' in Frame Data at index '%d'", data[dataIndex], frameIndexOffset);
+        frame[i] = data[dataIndex];
+        frameIndexOffset++;
+        dataIndex++;
+    } 
+    return frameIndexOffset;
+}
+
+void CreateDataFrameAndSendToCoordinator(void) {
+    int frameIndexOffset = 0;
+    char frameData[FRAME_DATA_LENGTH];
+
+    int maxIndex = FRAME_PREFIX_LENGTH;
+    frameIndexOffset = InsertDataToFrame(frameIndexOffset, maxIndex, framePrefixNewData, frameData); // insert Prefix data to frame
+
+    maxIndex += LUMINOSITY_DATA_LENGTH;
+    frameIndexOffset = InsertDataToFrame(frameIndexOffset, maxIndex, luminosity, frameData); // insert luminosity data to frame
+
+    maxIndex += TEMPERATURE_DATA_LENGTH;
+    frameIndexOffset = InsertDataToFrame(frameIndexOffset, maxIndex, temperature, frameData); // insert temperature data to frame
+
+    maxIndex += SOIL_HUMIDITY_DATA_LENGTH;
+    frameIndexOffset = InsertDataToFrame(frameIndexOffset, maxIndex, soilHumidity, frameData); // insert soil humidity data to frame   
+
+    maxIndex += WATER_LEVEL_DATA_LENGTH;
+    frameIndexOffset = InsertDataToFrame(frameIndexOffset, maxIndex, waterLevel, frameData); // insert water level data to frame     
+
+    SendFrameToCoordinator(frameData, sizeof(frameData));
+}
+
+
 
 void SendFrameToCoordinator(char frame[], uint16_t frameLength) {  
     DEBUG_PRINTXNL(DEBUG, "sending frame :");
