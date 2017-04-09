@@ -68,7 +68,7 @@ char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
 
 Thread eventQueueThread;
 EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
-XBeeZB xBee = XBeeZB(p13, p14, p8, NC, NC, XBEE_BAUD_RATE);
+XBeeZB xBee = XBeeZB(p28, p27, p29, NC, NC, XBEE_BAUD_RATE);
 // peripherals
 Serial pc(USBTX, USBRX);   // tx, rx
 DigitalOut LEDs[4] = {
@@ -79,9 +79,9 @@ ConfigFile cfg;
 TSL2561 tsl2561(p9, p10);  // luminosity sensor
 // setting unused analog input pins to digital outputs reduces A/D noise a bit
 DigitalOut P16(p16);
-DigitalOut P17(p17);
 DigitalOut P18(p18);
-AnalogIn tmp36_1(p19);       // temperature sensor 1
+DigitalOut P17(p19);
+AnalogIn tmp36_1(p17);       // temperature sensor 1
 AnalogIn tmp36_2(p20);       // temperature sensor 2
 DigitalOut waterPump(p21);
 
