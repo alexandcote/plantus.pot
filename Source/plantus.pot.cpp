@@ -9,23 +9,30 @@ void ReadCaptors(void) {
     snprintf(temperature, sizeof(temperature), "%f", readTemperature);
     INFO_PRINTXYNL(INFO, "read Temperature = '%4.2f C'", readTemperature);
 
-    uint16_t readSoilHumidity = ReadSoilHumidity();
-    soilHumidity[0] = readSoilHumidity;
-    INFO_PRINTXYNL(INFO, "read Soil Humidity = '0x%X'", readSoilHumidity);
+    uint16_t readSoilHumidityPercent = ReadSoilHumidityPercent();
+    soilHumidity[0] = readSoilHumidityPercent;
+    INFO_PRINTXYNL(INFO, "read Soil Humidity Percent = '%d'", readSoilHumidityPercent);
 
-    uint16_t readWaterLevel = ReadWaterLevel(); 
-    waterLevel[0] = readWaterLevel;
-    INFO_PRINTXYNL(INFO, "read Water level = '%i'", readWaterLevel);    
+    uint16_t readWaterLevelPercent = ReadWaterLevelPercent(); 
+    waterLevel[0] = readWaterLevelPercent;
+    INFO_PRINTXYNL(INFO, "read Water level percent = '%d'", readWaterLevelPercent);    
 
     CreateDataFrameAndSendToCoordinator();
 }
 
-uint16_t ReadSoilHumidity(void) {
-    // TODO read analog
-    return 17;
+uint16_t ReadSoilHumidityPercent(void) {
+    uint16_t humidityPercent = (int) ((humidity.read()*3.3)*100 / 2.55); // could possibly do more tweaking
+    DEBUG_PRINTXYNL(DEBUG, "Humidity percent is '%d'", humidityPercent);
+    return humidityPercent;
 }
 
 float ReadTemperature(void) {
+    float tempC;
+    tempC = ((tmp36 * 3.3) * 100 - 50);
+
+    DEBUG_PRINTXYNL(DEBUG, "Temperature is '%4.2f C'", tempC);
+    return tempC;   
+    /* if we want 2 captors
     float tempC1, tempC2, average;
     tempC1 = ((tmp36_1 * 3.3) * 100 - 50);
     tempC2 = ((tmp36_2 * 3.3) * 100 - 50);
@@ -34,6 +41,7 @@ float ReadTemperature(void) {
     DEBUG_PRINTXYNL(DEBUG, "Temperature 2 is '%4.2f C'", tempC2);
     DEBUG_PRINTXYNL(DEBUG, "Average temperature is '%4.2f C'", average);
     return average;
+    */
 }
 
 uint16_t ReadLuminosityPercent(void) {
@@ -47,7 +55,7 @@ uint16_t ReadLuminosityPercent(void) {
     return luminosityPercent;
 }
 
-uint16_t ReadWaterLevel(void) {
+uint16_t ReadWaterLevelPercent(void) {
     //TODO read water level
     return 20;
 }

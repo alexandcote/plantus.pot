@@ -34,7 +34,7 @@ using namespace XBeeLib;
 #define FRAME_PREFIX_COMPLETED_OPERATION 0x10
 
 // used for XBee
-#define XBEE_BAUD_RATE 115200
+#define XBEE_BAUD_RATE 115200 // 115200 9600
 #define NODE_IDENTIFIER_MAX_LENGTH  21
 #define NODE_DISCOVERY_TIMEOUT_MS   5000
 #define MAX_NODES 5
@@ -68,7 +68,7 @@ char globalOperationId[FRAME_PREFIX_LENGTH + OPERATION_ID_MAX_LENGTH];
 
 Thread eventQueueThread;
 EventQueue eventQueue(32 * EVENTS_EVENT_SIZE); // holds 32 events
-XBeeZB xBee = XBeeZB(p28, p27, p29, NC, NC, XBEE_BAUD_RATE);
+XBeeZB xBee = XBeeZB(p28, p27, p29, NC, NC, XBEE_BAUD_RATE); // tx, rx, reset 
 // peripherals
 Serial pc(USBTX, USBRX);   // tx, rx
 DigitalOut LEDs[4] = {
@@ -81,8 +81,8 @@ TSL2561 tsl2561(p9, p10);  // luminosity sensor
 DigitalOut P16(p16);
 DigitalOut P18(p18);
 DigitalOut P17(p19);
-AnalogIn tmp36_1(p17);       // temperature sensor 1
-AnalogIn tmp36_2(p20);       // temperature sensor 2
+AnalogIn humidity(p17);    // humidity captor
+AnalogIn tmp36(p20);       // temperature sensor
 DigitalOut waterPump(p21);
 
 
@@ -107,8 +107,8 @@ void SendCompletedOperationToCoordinator(char operationId[]);
 void PrepareFrameToSend(char frame[], char data[], int framePrefix);
 int InsertDataToFrame(int frameIndexOffset, const int maxIndex, const char data[], char frame[]);
 float ReadTemperature(void);
-uint16_t ReadSoilHumidity(void);
-uint16_t ReadWaterLevel(void);
+uint16_t ReadSoilHumidityPercent(void);
+uint16_t ReadWaterLevelPercent(void);
 uint16_t ReadLuminosityPercent(void);
 
 
