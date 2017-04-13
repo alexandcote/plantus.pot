@@ -57,7 +57,7 @@ using namespace XBeeLib;
 uint16_t periode;
 uint16_t panID; 
 uint8_t remoteNodesCount = 0;
-uint16_t pumpActivationTime = 5000; // ms
+uint16_t pumpActivationTime = 3000; // ms
 const char framePrefixNewData = {FRAME_PREFIX_NEW_DATA};
 char potIdentifier[POT_IDENTIFIER_LENGTH];
 char luminosity[LUMINOSITY_DATA_LENGTH];

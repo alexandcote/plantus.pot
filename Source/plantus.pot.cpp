@@ -21,7 +21,7 @@ void ReadCaptors(void) {
 }
 
 uint16_t ReadSoilHumidityPercent(void) {
-    uint16_t humidityPercent = (int) ((humidity.read()*3.3)*100 / 2.55); // could possibly do more tweaking
+    uint16_t humidityPercent = (uint16_t) ((humidity.read()*3.3)*100 / 2.7); // could possibly do more tweaking
     DEBUG_PRINTXYNL(DEBUG, "Humidity percent is '%d'", humidityPercent);
     return humidityPercent;
 }
@@ -157,19 +157,17 @@ void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, con
         DEBUG_PRINTXYZNL(DEBUG, "16 bit remote address is: '0x%X' and it is '%s'", remoteNode.get_addr16(), remoteNode.is_valid_addr16b() ? "valid" : "invalid");
         DEBUG_PRINTXYZ(DEBUG, "64 bit remote address is: '0x%X%X'", highAdr, lowAdr);
         DEBUG_PRINTXYNL(DEBUG, "and it is '%s'", remoteNode.is_valid_addr64b() ? "valid" : "invalid");
-
-        DEBUG_PRINTX(DEBUG, "Frame is: ");
-        for (int i = 0; i < frameLength; i++)
-            DEBUG_PRINTXY(DEBUG, "0x%X ", frame[i]);
-        DEBUG_PRINTXNL(DEBUG, "\r\n");
+    
+    DEBUG_PRINTX(DEBUG, "Frame is: ");
+    for (int i = 0; i < frameLength; i++)
+        DEBUG_PRINTXY(DEBUG, "0x%X ", frame[i]);
+    DEBUG_PRINTXNL(DEBUG, "\r\n");
     #endif
-
     if(remoteNode.get_addr16() == COORDINATOR_16BIT_ADDRESS) {
         DEBUG_PRINTXYNL(DEBUG, "Frame prefix = '0x%X'", frame[0]);
+        char operationId[OPERATION_ID_MAX_LENGTH];
+        memset(operationId, 0, sizeof(operationId)); // start with fresh values
         switch(frame[0]) {
-            char operationId[OPERATION_ID_MAX_LENGTH];
-            memset(operationId, 0, sizeof(operationId)); // start with fresh values
-
             case FRAME_PREFIX_WATER_PLANT:
                 INFO_PRINTXNL(INFO, "Water plant frame detected!");
                 for(int i = 1; i < frameLength; i++) 
@@ -178,6 +176,7 @@ void NewFrameReceivedHandler(const RemoteXBeeZB &remoteNode, bool broadcast, con
                 // make global copy to use with the event queue
                 memset(globalOperationId, 0, sizeof(globalOperationId)); // start with fresh values
                 strcat(globalOperationId, operationId);
+                INFO_PRINTXYNL(INFO, "Global operation id is '%s'", globalOperationId);
                 eventQueue.call(WaterPlant, globalOperationId);
                 break;
 
@@ -275,7 +274,7 @@ void StartEventQueue(uint16_t periode) {
     eventQueue.call_every(periode, ReadCaptors);
     eventQueue.call_every(1000, FlashLed, 3);  // just so we can see the event queue still runs
     eventQueue.call_every(100, CheckIfNewXBeeFrameIsPresent);
-    eventQueue.call_every(30000, SendPotIdentifierToCoordinator);
+    eventQueue.call_every(10000, SendPotIdentifierToCoordinator);
     eventQueueThread.start(callback(&eventQueue, &EventQueue::dispatch_forever));
 
     DEBUG_PRINTXNL(DEBUG, "Event queue thread started sucessfully!\r\n");
